@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LeadPulse CRM — Local CSV & Google Sheet Calling Dialer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <!-- PapaParse for fast, reliable client-side CSV parsing & exporting -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Header -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+        </div>
+        <div>
+          <h1>LeadPulse Dialer</h1>
+          <span id="activeFileName" class="file-badge">gmb_profiles_1795241649050.csv</span>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <label for="csvFileInput" class="btn btn-secondary" title="Upload any CSV file with leads">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          Upload New CSV
+        </label>
+        <input type="file" id="csvFileInput" accept=".csv" hidden />
+
+        <button id="btnGoogleSyncModal" class="btn btn-secondary" title="Connect Google Apps Script for live sheet updates">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+          </svg>
+          Sheet Sync <span id="syncDot" class="status-dot"></span>
+        </button>
+
+        <button id="btnExportCsv" class="btn btn-primary" title="Download updated CSV with Remarks & Status">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Export Updated CSV
+        </button>
+      </div>
+    </header>
+
+    <!-- KPI Stats Strip -->
+    <section class="stats-bar">
+      <div class="stat-card">
+        <span class="stat-label">Total Leads</span>
+        <strong id="statTotal" class="stat-value">0</strong>
+      </div>
+      <div class="stat-card stat-pending">
+        <span class="stat-label">Pending Calls</span>
+        <strong id="statPending" class="stat-value">0</strong>
+      </div>
+      <div class="stat-card stat-interested">
+        <span class="stat-label">Interested</span>
+        <strong id="statInterested" class="stat-value">0</strong>
+      </div>
+      <div class="stat-card stat-followup">
+        <span class="stat-label">Follow-up / Callback</span>
+        <strong id="statFollowup" class="stat-value">0</strong>
+      </div>
+      <div class="stat-card stat-not-interested">
+        <span class="stat-label">Not Interested / No Ans</span>
+        <strong id="statClosed" class="stat-value">0</strong>
+      </div>
+    </section>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+      <!-- Left Sidebar: Lead Queue -->
+      <aside class="sidebar">
+        <div class="sidebar-controls">
+          <div class="search-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="searchInput" placeholder="Search name, phone, specialty..." />
+          </div>
+
+          <div class="filter-pills" id="filterPills">
+            <button class="pill active" data-filter="All">All</button>
+            <button class="pill" data-filter="Pending">Pending</button>
+            <button class="pill" data-filter="Interested">Interested</button>
+            <button class="pill" data-filter="Follow-up">Follow-up</button>
+            <button class="pill" data-filter="Not Interested">Not Interested</button>
+          </div>
+        </div>
+
+        <div id="leadList" class="lead-list">
+          <!-- Populated dynamically by app.js -->
+        </div>
+      </aside>
+
+      <!-- Right Panel: Active Calling Console -->
+      <section class="console-panel">
+        <div id="emptyState" class="empty-state hidden">
+          <h2>No matching leads found</h2>
+          <p>Try clearing your search filter or upload a new CSV file.</p>
+        </div>
+
+        <div id="activeLeadCard" class="dialer-card">
+          <!-- Card Top Navigation -->
+          <div class="card-nav">
+            <span id="leadCounter" class="lead-index">Lead 1 of 120</span>
+            <div class="nav-buttons">
+              <button id="btnPrevLead" class="btn btn-ghost" title="Previous Lead (Left Arrow)">← Previous</button>
+              <button id="btnNextLead" class="btn btn-ghost" title="Next Lead (Right Arrow)">Next →</button>
+            </div>
+          </div>
+
+          <!-- Lead Profile Header -->
+          <div class="lead-header">
+            <div class="lead-title-group">
+              <div class="badges-row">
+                <span id="leadCategoryBadge" class="badge badge-category">Medical Clinic</span>
+                <span id="leadRatingBadge" class="badge badge-rating">★ 4.9 (397 reviews)</span>
+                <span id="leadStatusBadge" class="badge badge-status status-pending">Pending</span>
+              </div>
+              <h2 id="leadName" class="lead-name">Dr Vikash Dental</h2>
+              <p id="leadSubtext" class="lead-subtext">Row #1 in Sheet</p>
+            </div>
+
+            <!-- Primary Call & WhatsApp Action Buttons -->
+            <div class="action-cta-group">
+              <a id="btnCallNow" href="tel:" class="btn btn-call">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+                <span id="callBtnText">Call 078977 77223</span>
+              </a>
+
+              <a id="btnWhatsApp" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-whatsapp">
+                WhatsApp
+              </a>
+            </div>
+          </div>
+
+          <!-- Dynamic Details Grid (Automatically displays all columns from ANY uploaded CSV!) -->
+          <div class="details-section">
+            <h3 class="section-title">Lead Information (From Sheet)</h3>
+            <div id="dynamicDetailsGrid" class="details-grid">
+              <!-- Populated dynamically from CSV columns -->
+            </div>
+          </div>
+
+          <!-- Call Outcome & Remarks Box -->
+          <div class="remarks-section">
+            <div class="remarks-header">
+              <h3 class="section-title">Call Outcome & Sheet Remarks</h3>
+              <span id="saveIndicator" class="save-indicator">Saved to browser</span>
+            </div>
+
+            <!-- Quick Status Selector -->
+            <div class="status-selector" id="statusSelector">
+              <button type="button" class="status-btn" data-status="Interested">
+                <span class="dot dot-green"></span> Interested
+              </button>
+              <button type="button" class="status-btn" data-status="Follow-up">
+                <span class="dot dot-amber"></span> Follow-up
+              </button>
+              <button type="button" class="status-btn" data-status="Not Interested">
+                <span class="dot dot-red"></span> Not Interested
+              </button>
+              <button type="button" class="status-btn" data-status="No Answer">
+                <span class="dot dot-gray"></span> No Answer
+              </button>
+              <button type="button" class="status-btn" data-status="Pending">
+                <span class="dot dot-blue"></span> Pending
+              </button>
+            </div>
+
+            <!-- Quick Remark Templates -->
+            <div class="quick-chips">
+              <span class="chip-label">Quick Fill:</span>
+              <button type="button" class="chip" data-text="Interested in website & digital marketing. Send proposal on WhatsApp.">Send Proposal</button>
+              <button type="button" class="chip" data-text="Interested — asked to call back tomorrow evening.">Call Back Tomorrow</button>
+              <button type="button" class="chip" data-text="Receptionist picked up. Shared doctor/owner contact details.">Spoke to Reception</button>
+              <button type="button" class="chip" data-text="Already has a website / agency. Not interested right now.">Already Has Website</button>
+              <button type="button" class="chip" data-text="Number busy / switched off. Retry later.">Busy / No Answer</button>
+            </div>
+
+            <textarea id="remarksTextarea" rows="3" placeholder="Type call notes here... This will update the 'Remarks' column in your sheet."></textarea>
+
+            <div class="form-footer">
+              <button id="btnSaveOnly" class="btn btn-secondary">Save Remark</button>
+              <button id="btnSaveAndNext" class="btn btn-primary">Save Remark & Next Lead →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Google Sheets Live Sync Modal -->
+  <div id="syncModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Live Google Sheets Sync (Optional)</h3>
+        <button id="btnCloseModal" class="btn-icon">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Want your remarks to automatically update a live <strong>Google Sheet</strong> in real time? Paste your Google Apps Script Web App URL below:
+        </p>
+        <input type="url" id="webhookUrlInput" class="input-full" placeholder="https://script.google.com/macros/s/.../exec" />
+        <details class="script-guide">
+          <summary>How to get your Google Sheet Webhook URL (1-Minute Setup)</summary>
+          <ol>
+            <li>Open your CSV in <strong>Google Sheets</strong> and ensure columns <code>Status</code> and <code>Remarks</code> exist (or let the script add them).</li>
+            <li>Go to <strong>Extensions → Apps Script</strong> and paste this code:</li>
+          </ol>
+          <pre><code>function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var data = JSON.parse(e.postData.contents);
+  var rows = sheet.getDataRange().getValues();
+  var headers = rows[0];
+  var statusCol = headers.indexOf("Status") + 1;
+  var remarksCol = headers.indexOf("Remarks") + 1;
+
+  if (statusCol === 0) { statusCol = headers.length + 1; sheet.getRange(1, statusCol).setValue("Status"); }
+  if (remarksCol === 0) { remarksCol = headers.length + 2; sheet.getRange(1, remarksCol).setValue("Remarks"); }
+
+  var targetRow = data.rowIndex + 2; // +1 for 1-based index, +1 for header
+  sheet.getRange(targetRow, statusCol).setValue(data.status);
+  sheet.getRange(targetRow, remarksCol).setValue(data.remarks);
+  return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+}</code></pre>
+          <p class="small-note">Click <strong>Deploy → New deployment → Web app</strong> (Execute as: <em>Me</em>, Who has access: <em>Anyone</em>) and paste the URL above.</p>
+        </details>
+      </div>
+      <div class="modal-footer">
+        <button id="btnClearWebhook" class="btn btn-ghost">Disconnect</button>
+        <button id="btnSaveWebhook" class="btn btn-primary">Save Webhook URL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast hidden">Saved!</div>
+
+  <!-- Default preloaded dataset & Main Logic -->
+  <script src="default-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
